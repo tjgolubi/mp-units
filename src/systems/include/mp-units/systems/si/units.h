@@ -41,8 +41,12 @@ namespace si {
 // base units
 inline constexpr struct second final : named_unit<"s", kind_of<isq::time>> {} second;
 inline constexpr struct metre final : named_unit<"m", kind_of<isq::length>> {} metre;
+inline constexpr auto millimetre = milli<metre>;
+inline constexpr auto centimetre = centi<metre>;
+inline constexpr auto kilometre  = kilo<metre>;
 inline constexpr struct gram final : named_unit<"g", kind_of<isq::mass>> {} gram;
-inline constexpr auto kilogram = kilo<gram>;
+inline constexpr auto milligram = milli<gram>;
+inline constexpr auto kilogram  = kilo<gram>;
 inline constexpr struct ampere final : named_unit<"A", kind_of<isq::electric_current>> {} ampere;
 
 inline constexpr struct absolute_zero final : absolute_point_origin<isq::thermodynamic_temperature> {} absolute_zero;
@@ -106,10 +110,14 @@ inline constexpr struct arcsecond final : named_unit<symbol_text{u8"″", "''"},
 inline constexpr struct are final : named_unit<"a", square(si::deca<si::metre>)> {} are;
 inline constexpr auto hectare = si::hecto<are>;
 inline constexpr struct litre final : named_unit<"L", cubic(si::deci<si::metre>)> {} litre;
+inline constexpr auto millilitre = si::milli<litre>;
 inline constexpr struct tonne final : named_unit<"t", mag<1000> * si::kilogram> {} tonne;
 inline constexpr struct dalton final : named_unit<"Da", mag_ratio<16'605'390'666'050, 10'000'000'000'000> * mag_power<10, -27> * si::kilogram> {} dalton;
 // TODO A different value is provided in the SI Brochure and different in the ISO 80000
 inline constexpr struct electronvolt final : named_unit<"eV", mag_ratio<1'602'176'634, 1'000'000'000> * mag_power<10, -19> * si::joule> {} electronvolt;
+inline constexpr struct calorie final : named_unit<"cal", mag_ratio<4184, 1000> * si::joule, kind_of<isq::caloric_heat>> {} calorie;
+inline constexpr auto kilocalorie = si::kilo<calorie>;
+
 // TODO the below are logarithmic units - how to support those?
 // neper
 // bel

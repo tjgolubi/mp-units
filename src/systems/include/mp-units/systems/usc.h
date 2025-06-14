@@ -37,6 +37,15 @@ namespace mp_units::usc {
 
 using namespace international;
 
+// USA spellings
+inline constexpr auto meter = si::metre;
+inline constexpr auto millimeter = si::millimetre;
+inline constexpr auto centimeter = si::centimetre;
+inline constexpr auto kilometer  = si::kilometre;
+
+inline constexpr auto liter = si::litre;
+inline constexpr auto milliliter = si::millilitre;
+
 // clang-format off
 
 // https://en.wikipedia.org/wiki/United_States_customary_units#Length

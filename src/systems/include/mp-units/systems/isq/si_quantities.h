@@ -50,6 +50,8 @@ QUANTITY_SPEC(frequency, inverse(period_duration));
 
 // mechanics
 QUANTITY_SPEC(energy, mass* pow<2>(length) / pow<2>(time));  // differs from ISO 80000 (defined in thermodynamics)
+QUANTITY_SPEC(heat, energy);
+QUANTITY_SPEC(caloric_heat, heat, is_kind);
 
 // atomic_and_nuclear_physics
 QUANTITY_SPEC(activity, inverse(duration));
