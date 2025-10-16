@@ -110,6 +110,9 @@ inline constexpr struct tonne final : named_unit<"t", mag<1000> * si::kilogram> 
 inline constexpr struct dalton final : named_unit<"Da", mag_ratio<16'605'390'666'050, 10'000'000'000'000> * mag_power<10, -27> * si::kilogram> {} dalton;
 // TODO A different value is provided in the SI Brochure and different in the ISO 80000
 inline constexpr struct electronvolt final : named_unit<"eV", mag_ratio<1'602'176'634, 1'000'000'000> * mag_power<10, -19> * si::joule> {} electronvolt;
+inline constexpr struct calorie final : named_unit<"cal", mag_ratio<4184, 1000> * si::joule, kind_of<isq::caloric_heat>> {} calorie;
+inline constexpr auto kilocalorie = si::kilo<calorie>;
+
 // TODO the below are logarithmic units - how to support those?
 // neper
 // bel
