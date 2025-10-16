@@ -162,7 +162,7 @@ MP_UNITS_EXPORT_BEGIN
 template<Reference auto R, RepresentationOf<get_quantity_spec(R)> Rep = double>
 class quantity {
 public:
-  Rep numerical_value_is_an_implementation_detail_;  ///< needs to be public for a structural type
+  Rep numerical_value_is_an_implementation_detail_ = Rep{};  ///< needs to be public for a structural type
 
   // member types and values
   static constexpr Reference auto reference = R;
