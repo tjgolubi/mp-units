@@ -81,4 +81,29 @@ TEST_CASE("quantity operations", "[quantity]")
     volatile std::int16_t vint = 123;
     REQUIRE(quantity(vint * m).numerical_value_in(m) == 123);
   }
+
+  SECTION("Quantity assignment using operator()")
+  {
+    auto x = quantity<isq::length[m], int>{123 * km};
+    REQUIRE(x(m) == 123000);
+    x(m) = 321000;
+    REQUIRE(x(m) == 321000);
+    REQUIRE(x == 321 * km);
+    // REQUIRE(x(km) == 123); // won't compile
+    // x(km) = 321; // won't compile
+  }
+
+  SECTION("Quantity value assignment using operator() temporary")
+  {
+    using Q = quantity<isq::length[m], int>;
+    auto f = []() -> Q { return {456 * km}; };
+    REQUIRE(f() == 456 * km);
+    REQUIRE(f()(m) == 456000);
+    auto x = f();
+    REQUIRE(x == 456 * km);
+    REQUIRE(x(m) == 456000);
+    auto y = f()(m);
+    REQUIRE(y == 456000);
+    // auto z = f()(km); // won't compile
+  }
 }

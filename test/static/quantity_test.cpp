@@ -278,6 +278,14 @@ static_assert(quantity<isq::length[m], int>(2 * km).numerical_value_in(m) == 200
 static_assert(quantity<isq::length[km], int>(2 * km).numerical_value_in(km) == 2);
 static_assert(quantity<isq::length[km]>(1500 * m).numerical_value_in(km) == 1.5);
 
+//////////////////////////////////////
+// obtaining a number using operator()
+//////////////////////////////////////
+
+static_assert(quantity<isq::length[m], int>(123 * m)(m) == 123);
+static_assert(quantity<isq::length[m], int>(2 * km)(m) == 2000);
+static_assert(quantity<isq::length[km], int>(2 * km)(km) == 2);
+static_assert(quantity<isq::length[km]>(1500 * m)(km) == 1.5);
 
 ////////////////////////////////////////////////////////
 // explicit conversion to a number (when unit is one)

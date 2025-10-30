@@ -146,6 +146,18 @@ concept CommonlyInvocableQuantities =
 template<typename T>
 using quantity_like_type = quantity<quantity_like_traits<T>::reference, typename quantity_like_traits<T>::rep>;
 
+template<Quantity Q>
+  requires (Q::quantity_spec::character == quantity_character::vector)
+    && requires { typename Q::rep::element_type; }
+    && std::is_object_v<typename Q::rep::element_type>
+struct element_quantity {
+  using type = quantity<Q::quantity_spec::_parent_[Q::unit],
+                        typename Q::rep::element_type>;
+};
+
+template<Quantity Q>
+using element_quantity_t = element_quantity<Q>::type;
+
 }  // namespace detail
 
 MP_UNITS_EXPORT_BEGIN
@@ -649,7 +661,63 @@ public:
   {
     return lhs.numerical_value_ref_in(unit) <=> rhs;
   }
-};
+
+  template<Unit U> requires(equivalent(U{}, unit))
+  [[nodiscard]] constexpr rep& operator()(U) & noexcept
+    { return numerical_value_is_an_implementation_detail_; }
+
+  template<Unit U> requires(equivalent(U{}, unit))
+  [[nodiscard]] constexpr const rep& operator()(U) const& noexcept
+    { return numerical_value_is_an_implementation_detail_; }
+
+  template<Unit U> requires(equivalent(U{}, unit))
+  [[nodiscard]] constexpr rep operator()(U) && noexcept
+    { return numerical_value_is_an_implementation_detail_; }
+
+  template<Unit U> requires(equivalent(U{}, unit))
+  [[nodiscard]] constexpr rep operator()(U) const&& noexcept
+    { return numerical_value_is_an_implementation_detail_; }
+
+#ifdef TJG
+  struct Ref {
+    using type = element_quantity_t<quantity>;
+    type* p;
+    constexpr operator type() const noexcept { return *p; }
+    constexpr Ref& operator=(type v) { *p = std::move(v); return *this; }
+    Ref(rep& r, int i) : p{reinterpret_cast<type*>(std::addressof(r[i]))} { }
+    Ref(const Ref&) = default;
+    Ref& operator=(const Ref&) = default;
+    Ref() = delete;
+  };
+
+  constexpr Ref operator[](int i) & noexcept
+    requires (quantity_spec.character == quantity_character::vector)
+      && requires (rep& r, int i) { r[i]; }
+    { return Ref{numerical_value_is_an_implementation_detail_, i}; }
+
+  constexpr const Ref operator[](int i) const& noexcept
+    requires (quantity_spec.character == quantity_character::vector)
+      && requires (const rep& r, int i) { r[i]; }
+    { return Ref{numerical_value_is_an_implementation_detail_, i}; }
+
+  constexpr auto operator[](int i) && noexcept
+    requires (quantity_spec.character == quantity_character::vector)
+      && requires (rep&& r, int i) { r[i]; }
+  {
+    return numerical_value_is_an_implementation_detail_[i]
+         * quantity_spec._parent_[unit];
+  }
+
+  constexpr auto operator[](int i) const&& noexcept
+    requires (quantity_spec.character == quantity_character::vector)
+      && requires (const rep&& r, int i) { r[i]; }
+  {
+    return numerical_value_is_an_implementation_detail_[i]
+         * quantity_spec._parent_[unit];
+  }
+#endif
+
+}; // quantity
 
 // CTAD
 template<Reference R, RepresentationOf<get_quantity_spec(R{})> Value>
@@ -664,6 +732,38 @@ quantity(Value) -> quantity<one, Value>;
 
 template<QuantityLike Q>
 quantity(Q) -> quantity<quantity_like_traits<Q>::reference, typename quantity_like_traits<Q>::rep>;
+
+#ifdef TJG
+template<std::size_t I,
+         Reference auto R, RepresentationOf<get_quantity_spec(R)> Rep>
+  requires (get_quantity_spec(R).character == quantity_character::vector)
+    && requires (Rep& r) { get<I>(r); }
+constexpr auto get(quantity<R, Rep>& q) noexcept {
+  auto& ref = get<I>(q.numerical_value_ref_in(q.unit));
+  using type = element_quantity_t<quantity<R, Rep>>;
+  return reinterpret_cast<type&>(ref);
+}
+#endif
+
+#if 0
+template<std::size_t I,
+         Reference auto R, RepresentationOf<get_quantity_spec(R)> Rep>
+  requires (get_quantity_spec(R).character == quantity_character::vector)
+    && requires (const Rep& r) { get<I>(r); }
+constexpr auto get(const quantity<R, Rep>& q) noexcept
+  { return get<I>(q.numerical_value_ref_in(q.unit)) * q.quantity_spec._parent_[q.unit]; }
+
+template<std::size_t I,
+         Reference auto R, RepresentationOf<get_quantity_spec(R)> Rep,
+         auto R2, typename Rep2>
+  requires (get_quantity_spec(R).character == quantity_character::vector)
+    && requires (Rep& r) { get<I>(r); }
+    && explicitly_convertible(get_quantity_spec(R), get_quantity_spec(R2)._parent_
+    && detail::ValuePreservingConstruction<typename Rep::element_type, Rep2>
+    && detail::ValuePreservingConversion<get_unit(R2), Rep2, get_unit(R), typename Rep::element_type>
+constexpr void set(quantity<R, Rep>& q, const quantity<R2, Rep2>& v) noexcept
+  { get<I>(q.numerical_value_ref_in(q.unit)) = v.numerical_value_in(q.unit); }
+#endif
 
 #if MP_UNITS_HOSTED
 
