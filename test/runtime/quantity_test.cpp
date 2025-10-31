@@ -87,6 +87,17 @@ TEST_CASE("quantity operations", "[quantity]")
     auto x = quantity<isq::length[m], int>{123 * km};
     REQUIRE(x(m) == 123000);
     x(m) = 321000;
+    // x(km) = 321; // won't compile
+    REQUIRE(x(m) == 321000);
+    REQUIRE(x(cm) == 32100000);
+    REQUIRE(x == 321 * km);
+  }
+
+  SECTION("Quantity read using operator()")
+  {
+    auto x = quantity<isq::length[m], int>{123 * km};
+    REQUIRE(x(m) == 123000);
+    x(m) = 321000;
     REQUIRE(x(m) == 321000);
     REQUIRE(x == 321 * km);
     // REQUIRE(x(km) == 123); // won't compile

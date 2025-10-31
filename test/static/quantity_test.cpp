@@ -286,6 +286,7 @@ static_assert(quantity<isq::length[m], int>(123 * m)(m) == 123);
 static_assert(quantity<isq::length[m], int>(2 * km)(m) == 2000);
 static_assert(quantity<isq::length[km], int>(2 * km)(km) == 2);
 static_assert(quantity<isq::length[km]>(1500 * m)(km) == 1.5);
+static_assert(quantity<isq::length[m]>(1500 * m)(km) == 1.5);
 
 ////////////////////////////////////////////////////////
 // explicit conversion to a number (when unit is one)

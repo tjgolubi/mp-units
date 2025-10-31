@@ -218,6 +218,7 @@ class MPUnitsConan(ConanFile):
         if self._build_all:
             if not self.options.freestanding:
                 self.test_requires("catch2/3.11.0@terry/local")
+                self.test_requires("wg21-linear_algebra/0.7.3")
 
     def validate(self):
         compiler = self.settings.compiler

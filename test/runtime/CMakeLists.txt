@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 find_package(Catch2 3 REQUIRED)
+find_package(wg21_linear_algebra CONFIG REQUIRED)
 
 add_executable(
     unit_tests_runtime
@@ -32,11 +33,15 @@ add_executable(
     math_test.cpp
     quantity_test.cpp
     truncation_test.cpp
+    linear_algebra_test.cpp
 )
 if(${projectPrefix}BUILD_CXX_MODULES)
     target_compile_definitions(unit_tests_runtime PUBLIC ${projectPrefix}MODULES)
 endif()
-target_link_libraries(unit_tests_runtime PRIVATE mp-units::mp-units Catch2::Catch2WithMain)
+target_link_libraries(unit_tests_runtime PRIVATE mp-units::mp-units
+                wg21_linear_algebra::wg21_linear_algebra Catch2::Catch2WithMain)
+
+target_compile_options(unit_tests_runtime PRIVATE -ftemplate-backtrace-limit=0)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_options(

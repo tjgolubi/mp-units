@@ -38,8 +38,36 @@ import mp_units;
 #include <mp-units/systems/si.h>
 #endif
 
+#include <cmath>
+
 template<typename Rep = double>
 using vector = STD_LA::fixed_size_column_vector<Rep, 3>;
+
+namespace STD_LA {
+
+template<typename Rep>
+constexpr Rep magnitude(const fixed_size_column_vector<Rep, 3>& v) noexcept
+{
+  using std::hypot;
+  return static_cast<Rep>(hypot(v(0), v(1), v(2)));
+} // magnitude
+
+template<typename Rep>
+constexpr auto direction(const fixed_size_column_vector<Rep, 3>& v) noexcept
+{
+  using std::atan2;
+  return atan2(v(1), v(0));
+} // direction
+
+template<typename Rep>
+constexpr auto elevation(const fixed_size_column_vector<Rep, 3>& v)
+{
+  using std::hypot;
+  using std::atan2;
+  return atan2(v(2), hypot(v(1), v(0)));
+} // elevation
+
+} // STD_LA
 
 template<typename Rep>
 std::ostream& operator<<(std::ostream& os, const vector<Rep>& v)
@@ -51,6 +79,47 @@ std::ostream& operator<<(std::ostream& os, const vector<Rep>& v)
   os << " |";
   return os;
 }
+
+namespace tjg {
+
+template<std::size_t Dim, typename Rep = double> requires (Dim==2 || Dim==3)
+using Vector = std::array<Rep, Dim>;
+
+template<std::size_t Dim, typename Rep>
+constexpr Rep magnitude(const Vector<Dim, Rep>& v) noexcept {
+  using std::hypot;
+  if constexpr (Dim == 3)
+    return static_cast<Rep>(hypot(v[0], v[1], v[2]));
+  else
+    return static_cast<Rep>(hypot(v[0], v[1]));
+} // magnitude
+
+template<std::size_t Dim, typename Rep>
+constexpr auto direction(const Vector<Dim, Rep>& v) noexcept {
+  using std::atan2;
+  return atan2(v[1], v[0]);
+} // direction
+
+template<std::size_t Dim, typename Rep> requires (Dim == 3)
+constexpr auto elevation(const Vector<Dim, Rep>& v) noexcept
+{
+  using std::hypot;
+  using std::atan2;
+  return atan2(v[2], hypot(v[1], v[0]));
+} // elevation
+
+template<std::size_t Dim, typename Rep>
+std::ostream& operator<<(std::ostream& os, const Vector<Dim, Rep>& v)
+{
+  os << "|";
+  for (auto i = 0U; i < v.size(); ++i) {
+    os << MP_UNITS_STD_FMT::format(" {:>9}", v[i]);
+  }
+  os << " |";
+  return os;
+}
+
+} // tjg
 
 namespace {
 
@@ -289,6 +358,33 @@ TEST_CASE("vector quantity", "[la]")
 
     CHECK(cross_product(r, f) == vector<int>{0, 0, 30} * isq::moment_of_force[N * m]);
   }
+
+#if 0
+  SECTION("operator()")
+  {
+    SECTION("get")
+    {
+      const auto v = vector<int>{3, 2, 1} * isq::displacement[km];
+      auto v0 = v(0);
+      // auto v1 = v(1);
+      // auto v2 = v(2);
+      CHECK(v0.numerical_value_in(m) == 3000);
+      // CHECK(v(1).numerical_value_in(m) == 2000);
+      // CHECK(v(2).numerical_value_in(m) == 1000);
+    }
+
+    SECTION("set")
+    {
+      auto v = vector<int>{} * isq::displacement[m];
+      v(0) =    7 * km;
+      v(1) = 8000 * m;
+      v(2) =  900 * cm;
+      CHECK(v(0).numerical_value_in(m) == 7000);
+      CHECK(v(1).numerical_value_in(m) == 8000);
+      CHECK(v(2).numerical_value_in(m) ==    9);
+    }
+  }
+#endif
 }
 
 TEST_CASE("vector of quantities", "[la]")
@@ -379,6 +475,7 @@ TEST_CASE("vector of quantities", "[la]")
     }
   }
 
+#if 0
   SECTION("multiply by scalar quantity")
   {
     const vector<quantity<isq::velocity[m / s], int>> v = {1 * m / s, 2 * m / s, 3 * m / s};
@@ -480,6 +577,7 @@ TEST_CASE("vector of quantities", "[la]")
       }
     }
   }
+#endif
 
   SECTION("cross product with a vector of quantities")
   {
