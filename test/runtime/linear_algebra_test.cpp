@@ -127,12 +127,6 @@ constexpr struct current_vec final
   : quantity_spec<isq::electric_current, quantity_character::vector>
   { } current_vec;
 
-#if 0
-constexpr struct voltage_vec final
-  : quantity_spec<isq::voltage, quantity_character::vector>
-  { } voltage_vec;
-#endif
-
 template<QuantitySpec auto QS, QuantityOf<QS> Q>
   requires(Q::quantity_spec.character == quantity_character::vector) &&
           (QS.character == quantity_character::real_scalar) &&
@@ -584,7 +578,7 @@ TEST_CASE("vector of quantities", "[la]")
 
     SECTION("integral")
     {
-      const auto mass = 2 * isq::mass[kg];
+      const auto mass   = 2 * isq::mass[kg];
       const auto result = vector<quantity<isq::momentum[N * s], int>>{2 * N * s, 4 * N * s, 6 * N * s};
 
       SECTION("derived_quantity_spec")
@@ -594,7 +588,6 @@ TEST_CASE("vector of quantities", "[la]")
       }
 
       // no way to apply quantity_cast to sub-components
-
       SECTION("quantity of momentum")
       {
         SECTION("scalar on LHS")
