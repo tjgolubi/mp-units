@@ -20,7 +20,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "Vector3D.hpp"
+
 #include <catch2/catch_test_macros.hpp>
+
 #include <mp-units/compat_macros.h>
 #include <mp-units/ext/format.h>
 #ifdef MP_UNITS_IMPORT_STD
@@ -38,6 +41,7 @@ import mp_units;
 #include <mp-units/systems/si.h>
 #endif
 
+#include <array>
 #include <cmath>
 
 template<typename Rep = double>
@@ -46,21 +50,21 @@ using vector = STD_LA::fixed_size_column_vector<Rep, 3>;
 namespace STD_LA {
 
 template<typename Rep>
-constexpr Rep magnitude(const fixed_size_column_vector<Rep, 3>& v) noexcept
+[[nodiscard]] inline Rep magnitude(const fixed_size_column_vector<Rep, 3>& v) noexcept
 {
   using std::hypot;
   return static_cast<Rep>(hypot(v(0), v(1), v(2)));
 } // magnitude
 
 template<typename Rep>
-constexpr auto direction(const fixed_size_column_vector<Rep, 3>& v) noexcept
+[[nodiscard]] inline auto direction(const fixed_size_column_vector<Rep, 3>& v) noexcept
 {
   using std::atan2;
   return atan2(v(1), v(0));
 } // direction
 
 template<typename Rep>
-constexpr auto elevation(const fixed_size_column_vector<Rep, 3>& v)
+[[nodiscard]] inline auto elevation(const fixed_size_column_vector<Rep, 3>& v)
 {
   using std::hypot;
   using std::atan2;
@@ -80,47 +84,6 @@ std::ostream& operator<<(std::ostream& os, const vector<Rep>& v)
   return os;
 }
 
-namespace tjg {
-
-template<std::size_t Dim, typename Rep = double> requires (Dim==2 || Dim==3)
-using Vector = std::array<Rep, Dim>;
-
-template<std::size_t Dim, typename Rep>
-constexpr Rep magnitude(const Vector<Dim, Rep>& v) noexcept {
-  using std::hypot;
-  if constexpr (Dim == 3)
-    return static_cast<Rep>(hypot(v[0], v[1], v[2]));
-  else
-    return static_cast<Rep>(hypot(v[0], v[1]));
-} // magnitude
-
-template<std::size_t Dim, typename Rep>
-constexpr auto direction(const Vector<Dim, Rep>& v) noexcept {
-  using std::atan2;
-  return atan2(v[1], v[0]);
-} // direction
-
-template<std::size_t Dim, typename Rep> requires (Dim == 3)
-constexpr auto elevation(const Vector<Dim, Rep>& v) noexcept
-{
-  using std::hypot;
-  using std::atan2;
-  return atan2(v[2], hypot(v[1], v[0]));
-} // elevation
-
-template<std::size_t Dim, typename Rep>
-std::ostream& operator<<(std::ostream& os, const Vector<Dim, Rep>& v)
-{
-  os << "|";
-  for (auto i = 0U; i < v.size(); ++i) {
-    os << MP_UNITS_STD_FMT::format(" {:>9}", v[i]);
-  }
-  os << " |";
-  return os;
-}
-
-} // tjg
-
 namespace {
 
 using namespace mp_units;
@@ -128,7 +91,8 @@ using namespace mp_units::si::unit_symbols;
 
 template<QuantitySpec auto QS, QuantityOf<QS> Q>
   requires(Q::quantity_spec.character == quantity_character::vector) &&
-          (QS.character == quantity_character::real_scalar)
+          (QS.character == quantity_character::real_scalar) &&
+          requires (const Q& q) { q.numerical_value_ref_in(q.unit)(0); }
 [[nodiscard]] constexpr QuantityOf<QS> auto get_magnitude(const Q& q)
 {
   const auto& v = q.numerical_value_ref_in(q.unit);
@@ -141,6 +105,24 @@ template<QuantitySpec auto QS, QuantityOf<QS> T>
 [[nodiscard]] constexpr QuantityOf<QS> auto get_magnitude(const vector<T>& v)
 {
   return hypot(QS(v(0)), QS(v(1)), QS(v(2)));
+}
+
+template<QuantitySpec auto QS, QuantityOf<QS> Q>
+  requires(Q::quantity_spec.character == quantity_character::vector) &&
+          (QS.character == quantity_character::real_scalar) &&
+          requires (const Q& q) { q.numerical_value_ref_in(q.unit)[0]; }
+[[nodiscard]] constexpr QuantityOf<QS> auto get_magnitude(const Q& q)
+{
+  const auto& v = q.numerical_value_ref_in(q.unit);
+  return hypot(v[0] * QS[Q::unit], v[1] * QS[Q::unit], v[2] * QS[Q::unit]);
+}
+
+template<QuantitySpec auto QS, QuantityOf<QS> T>
+  requires(T::quantity_spec.character == quantity_character::vector) &&
+          (QS.character == quantity_character::real_scalar)
+[[nodiscard]] constexpr QuantityOf<QS> auto get_magnitude(const tjg::Vector3D<T>& v)
+{
+  return hypot(QS(v[0]), QS(v[1]), QS(v[2]));
 }
 
 template<typename T, typename U>
@@ -586,4 +568,214 @@ TEST_CASE("vector of quantities", "[la]")
 
     CHECK(cross_product(r, f) == vector<quantity<isq::moment_of_force[N * m], int>>{0 * N * m, 0 * N * m, 30 * N * m});
   }
+}
+
+TEST_CASE("vector quantity", "[tjg]")
+{
+  SECTION("cast of unit")
+  {
+    SECTION("non-truncating")
+    {
+      const auto v = tjg::Vector3D<int>{3, 2, 1} * isq::displacement[km];
+      CHECK(v.numerical_value_in(m) == tjg::Vector3D<int>{3000, 2000, 1000});
+    }
+
+    SECTION("truncating")
+    {
+      const auto v = tjg::Vector3D<int>{1001, 1002, 1003} * isq::displacement[m];
+      CHECK(v.force_numerical_value_in(km) == tjg::Vector3D<int>{1, 1, 1});
+    }
+  }
+  SECTION("to scalar magnitude")
+  {
+    const auto v = tjg::Vector3D<int>{2, 3, 6} * isq::velocity[km / h];
+    const auto speed = get_magnitude<isq::speed>(v);
+    CHECK(speed.numerical_value_ref_in(km / h) == 7);
+  }
+  SECTION("element access")
+  {
+    auto v = tjg::Vector3D<int>{3, 1, 4} * isq::velocity[km / h];
+    CHECK(v[0] == 3 * km / h);
+    CHECK(v[1] == 1 * km / h);
+    CHECK(v[2] == 4 * km / h);
+    v[1] = 2 * km / h;
+    CHECK(v[1] == 2 * km / h);
+  }
+  SECTION("multiply by scalar value")
+  {
+    const auto v = tjg::Vector3D<int>{1, 2, 3} * isq::displacement[m];
+
+    SECTION("integral")
+    {
+      SECTION("scalar on LHS") { CHECK((2 * v).numerical_value_in(m) == tjg::Vector3D<int>{2, 4, 6}); }
+      SECTION("scalar on RHS") { CHECK((v * 2).numerical_value_in(m) == tjg::Vector3D<int>{2, 4, 6}); }
+    }
+
+    SECTION("floating-point")
+    {
+      SECTION("scalar on LHS") { CHECK((0.5 * v).numerical_value_in(m) == tjg::Vector3D<double>{0.5, 1., 1.5}); }
+      SECTION("scalar on RHS") { CHECK((v * 0.5).numerical_value_in(m) == tjg::Vector3D<double>{0.5, 1., 1.5}); }
+    }
+  }
+
+  SECTION("divide by scalar value")
+  {
+    const auto v = tjg::Vector3D<int>{2, 4, 6} * isq::displacement[m];
+
+    SECTION("integral") { CHECK((v / 2).numerical_value_in(m) == tjg::Vector3D<int>{1, 2, 3}); }
+    SECTION("floating-point") { CHECK((v / 0.5).numerical_value_in(m) == tjg::Vector3D<double>{4., 8., 12.}); }
+  }
+
+  SECTION("add")
+  {
+    const auto v = tjg::Vector3D<int>{1, 2, 3} * isq::displacement[m];
+
+    SECTION("same unit")
+    {
+      const auto u = tjg::Vector3D<int>{3, 2, 1} * isq::displacement[m];
+      CHECK((v + u).numerical_value_in(m) == tjg::Vector3D<int>{4, 4, 4});
+    }
+    SECTION("different units")
+    {
+      const auto u = tjg::Vector3D<int>{3, 2, 1} * isq::displacement[km];
+      CHECK((v + u).numerical_value_in(m) == tjg::Vector3D<int>{3001, 2002, 1003});
+    }
+  }
+
+  SECTION("subtract")
+  {
+    const auto v = tjg::Vector3D<int>{1, 2, 3} * isq::displacement[m];
+
+    SECTION("same unit")
+    {
+      const auto u = tjg::Vector3D<int>{3, 2, 1} * isq::displacement[m];
+      CHECK((v - u).numerical_value_in(m) == tjg::Vector3D<int>{-2, 0, 2});
+    }
+    SECTION("different units")
+    {
+      const auto u = tjg::Vector3D<int>{3, 2, 1} * isq::displacement[km];
+      CHECK((v - u).numerical_value_in(m) == tjg::Vector3D<int>{-2999, -1998, -997});
+    }
+  }
+
+  SECTION("multiply by scalar quantity")
+  {
+    const auto v = tjg::Vector3D<int>{1, 2, 3} * isq::velocity[m / s];
+
+    SECTION("integral")
+    {
+      const auto mass = 2 * isq::mass[kg];
+
+      SECTION("derived_quantity_spec")
+      {
+        SECTION("scalar on LHS") { CHECK((mass * v).numerical_value_in(kg * m / s) == tjg::Vector3D<int>{2, 4, 6}); }
+        SECTION("scalar on RHS") { CHECK((v * mass).numerical_value_in(kg * m / s) == tjg::Vector3D<int>{2, 4, 6}); }
+      }
+      SECTION("quantity_cast to momentum")
+      {
+        SECTION("scalar on LHS")
+        {
+          CHECK(quantity_cast<isq::momentum>(mass * v).numerical_value_in(N * s) == tjg::Vector3D<int>{2, 4, 6});
+        }
+        SECTION("scalar on RHS")
+        {
+          CHECK(quantity_cast<isq::momentum>(v * mass).numerical_value_in(N * s) == tjg::Vector3D<int>{2, 4, 6});
+        }
+      }
+      SECTION("quantity of momentum")
+      {
+        SECTION("scalar on LHS")
+        {
+          const quantity<isq::momentum[N * s], tjg::Vector3D<int>> momentum = mass * v;
+          CHECK(momentum.numerical_value_ref_in(N * s) == tjg::Vector3D<int>{2, 4, 6});
+        }
+        SECTION("scalar on RHS")
+        {
+          const quantity<isq::momentum[N * s], tjg::Vector3D<int>> momentum = v * mass;
+          CHECK(momentum.numerical_value_ref_in(N * s) == tjg::Vector3D<int>{2, 4, 6});
+        }
+      }
+    }
+
+    SECTION("floating-point")
+    {
+      const auto mass = 0.5 * isq::mass[kg];
+
+      SECTION("derived_quantity_spec")
+      {
+        SECTION("scalar on LHS") { CHECK((mass * v).numerical_value_in(kg * m / s) == tjg::Vector3D<double>{0.5, 1., 1.5}); }
+        SECTION("scalar on RHS") { CHECK((v * mass).numerical_value_in(kg * m / s) == tjg::Vector3D<double>{0.5, 1., 1.5}); }
+      }
+      SECTION("quantity_cast to momentum")
+      {
+        SECTION("scalar on LHS")
+        {
+          CHECK(quantity_cast<isq::momentum>(mass * v).numerical_value_in(N * s) == tjg::Vector3D<double>{0.5, 1., 1.5});
+        }
+        SECTION("scalar on RHS")
+        {
+          CHECK(quantity_cast<isq::momentum>(v * mass).numerical_value_in(N * s) == tjg::Vector3D<double>{0.5, 1., 1.5});
+        }
+      }
+      SECTION("quantity of momentum")
+      {
+        SECTION("scalar on LHS")
+        {
+          const quantity<isq::momentum[N * s], tjg::Vector3D<double>> momentum = mass * v;
+          CHECK(momentum.numerical_value_ref_in(N * s) == tjg::Vector3D<double>{0.5, 1., 1.5});
+        }
+        SECTION("scalar on RHS")
+        {
+          const quantity<isq::momentum[N * s], tjg::Vector3D<double>> momentum = v * mass;
+          CHECK(momentum.numerical_value_ref_in(N * s) == tjg::Vector3D<double>{0.5, 1., 1.5});
+        }
+      }
+    }
+  }
+
+  SECTION("divide by scalar quantity")
+  {
+    const auto pos = tjg::Vector3D<int>{30, 20, 10} * isq::displacement[km];
+
+    SECTION("integral")
+    {
+      const auto dur = 2 * isq::duration[h];
+
+      SECTION("derived_quantity_spec") { CHECK((pos / dur).numerical_value_in(km / h) == tjg::Vector3D<int>{15, 10, 5}); }
+      SECTION("quantity_cast to velocity")
+      {
+        CHECK(quantity_cast<isq::velocity>(pos / dur).numerical_value_in(km / h) == tjg::Vector3D<int>{15, 10, 5});
+      }
+      SECTION("quantity of velocity")
+      {
+        const quantity<isq::velocity[km / h], tjg::Vector3D<int>> v = pos / dur;
+        CHECK(v.numerical_value_ref_in(km / h) == tjg::Vector3D<int>{15, 10, 5});
+      }
+    }
+
+    SECTION("floating-point")
+    {
+      const auto dur = 0.5 * isq::duration[h];
+
+      SECTION("derived_quantity_spec") { CHECK((pos / dur).numerical_value_in(km / h) == tjg::Vector3D<double>{60, 40, 20}); }
+      SECTION("quantity_cast to velocity")
+      {
+        CHECK(quantity_cast<isq::velocity>(pos / dur).numerical_value_in(km / h) == tjg::Vector3D<double>{60, 40, 20});
+      }
+      SECTION("quantity of velocity")
+      {
+        const quantity<isq::velocity[km / h], tjg::Vector3D<double>> v = pos / dur;
+        CHECK(v.numerical_value_ref_in(km / h) == tjg::Vector3D<double>{60, 40, 20});
+      }
+    }
+  }
+
+  SECTION("cross product with a vector quantity")
+  {
+    const auto r = tjg::Vector3D<int>{3, 0, 0} * isq::displacement[m];
+    const auto f = tjg::Vector3D<int>{0, 10, 0} * isq::force[N];
+
+    CHECK(cross_product(r, f) == tjg::Vector3D<int>{0, 0, 30} * isq::moment_of_force[N * m]);
+  }
+
 }

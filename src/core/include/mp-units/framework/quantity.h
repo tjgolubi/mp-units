@@ -664,25 +664,24 @@ public:
   /// Vector element access.
 
   /// Proxy for q[idx] on non-const lvalues (read/write quantity view).
-  template<std::integral I>
   struct Brack1ElemRef {
     quantity* q;
-    I         i;
+    std::size_t idx;
 
-    using ElemRef = decltype(std::declval<rep&>()[std::declval<I>()]);
+    using ElemRef = decltype(std::declval<rep&>()[0]);
     using ElemRep = std::remove_reference_t<ElemRef>;
     using QQ      = quantity<reference, ElemRep>;
 
     /// Read as a quantity value.
     constexpr operator QQ() const {
       auto& nr = q->numerical_value_ref_in(unit);
-      return nr[i] * reference;
+      return nr[idx] * reference;
     }
 
     /// Plain assignment: only the exact element-quantity type.
     constexpr Brack1ElemRef& operator=(const QQ& rhs) {
       auto& nr = q->numerical_value_ref_in(unit);
-      nr[i] = rhs.numerical_value_in(unit);
+      nr[idx] = rhs.numerical_value_in(unit);
       return *this;
     }
 
@@ -714,28 +713,32 @@ public:
       cur /= QQ(std::forward<X>(x));
       return (*this = cur);
     }
+
+    bool operator==(const QQ& rhs) const
+      { return (QQ{*this} == rhs); }
+
   }; // Brack1ElemRef
 
   // ---- operator[] overloads ----
 
   // & → proxy (read/write)
-  template<std::integral I> requires requires(rep& r, I i) { r[i]; }
-  constexpr auto operator[](I idx) &
-    noexcept(noexcept(std::declval<rep&>()[idx]))
-    { return Brack1ElemRef<I>{this, idx}; }
+  constexpr auto operator[](std::integral auto idx) &
+    noexcept(noexcept(std::declval<rep&>()[0u]))
+    requires requires(rep& r) { r[0u]; }
+    { return Brack1ElemRef{this, static_cast<std::size_t>(idx)}; }
 
   // const& → value quantity (read-only)
-  template<std::integral I> requires requires(const rep& r, I i) { r[i]; }
-  constexpr auto operator[](I idx) const&
-    noexcept(noexcept(std::declval<const rep&>()[idx]))
-    { return numerical_value_is_an_implementation_detail_[idx] * reference; }
+  constexpr auto operator[](std::integral auto idx) const&
+    noexcept(noexcept(std::declval<const rep&>()[0u]))
+    requires requires(const rep& r) { r[0u]; }
+    { return numerical_value_is_an_implementation_detail_[static_cast<std::size_t>(idx)] * reference; }
 
   // && → value quantity (read-only); move only the element
-  template<std::integral I> requires requires(rep& r, I i) { r[i]; }
-  constexpr auto operator[](I idx) &&
-    noexcept(noexcept(numerical_value_is_an_implementation_detail_[idx]))
+  constexpr auto operator[](std::integral auto idx) &&
+    noexcept(noexcept(numerical_value_is_an_implementation_detail_[0u]))
+    requires requires(rep& r) { r[0u]; }
   {
-    return std::move(numerical_value_is_an_implementation_detail_[idx])
+    return std::move(numerical_value_is_an_implementation_detail_[std::size_t(idx)])
            * reference;
   }
 
