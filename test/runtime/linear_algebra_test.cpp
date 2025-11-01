@@ -38,6 +38,7 @@ import mp_units;
 #include <mp-units/math.h>
 #include <mp-units/systems/isq/mechanics.h>
 #include <mp-units/systems/isq/space_and_time.h>
+#include <mp-units/systems/isq/electromagnetism.h>
 #include <mp-units/systems/si.h>
 #endif
 
@@ -46,6 +47,9 @@ import mp_units;
 
 template<typename Rep = double>
 using vector = STD_LA::fixed_size_column_vector<Rep, 3>;
+
+template<typename Rep = double>
+using matrix = STD_LA::fixed_size_matrix<Rep, 3, 3>;
 
 namespace STD_LA {
 
@@ -71,6 +75,20 @@ template<typename Rep>
   return atan2(v(2), hypot(v(1), v(0)));
 } // elevation
 
+template<typename Rep>
+[[nodiscard]] inline Rep magnitude(const fixed_size_matrix<Rep, 3, 3>& m) noexcept
+{
+  using std::sqrt;
+  auto sum = Rep{};
+  for (std::size_t i=0; i!=3; ++i) {
+    for (std::size_t j=0; j!=3; ++j) {
+      const auto& e = m(i, j);
+      sum += e * e;
+    }
+  }
+  return sqrt(sum);
+} // magnitude
+
 } // STD_LA
 
 template<typename Rep>
@@ -84,10 +102,36 @@ std::ostream& operator<<(std::ostream& os, const vector<Rep>& v)
   return os;
 }
 
+template<typename Rep>
+std::ostream& operator<<(std::ostream& os, const matrix<Rep>& m)
+{
+  for (auto i = 0U; i != m.rows(); ++i) {
+    os << '|';
+    for (auto j = 0U; j != m.columns(); ++j)
+      os << MP_UNITS_STD_FMT::format(" {:>9}", m(i, j));
+    os << " |\n";
+  }
+  return os;
+}
+
 namespace {
 
 using namespace mp_units;
 using namespace mp_units::si::unit_symbols;
+
+constexpr struct resistance_vec final
+  : quantity_spec<isq::resistance, quantity_character::vector>
+  { } resistance_vec;
+
+constexpr struct current_vec final
+  : quantity_spec<isq::electric_current, quantity_character::vector>
+  { } current_vec;
+
+#if 0
+constexpr struct voltage_vec final
+  : quantity_spec<isq::voltage, quantity_character::vector>
+  { } voltage_vec;
+#endif
 
 template<QuantitySpec auto QS, QuantityOf<QS> Q>
   requires(Q::quantity_spec.character == quantity_character::vector) &&
@@ -105,6 +149,24 @@ template<QuantitySpec auto QS, QuantityOf<QS> T>
 [[nodiscard]] constexpr QuantityOf<QS> auto get_magnitude(const vector<T>& v)
 {
   return hypot(QS(v(0)), QS(v(1)), QS(v(2)));
+}
+
+template<QuantitySpec auto QS, QuantityOf<QS> Q>
+  requires(Q::quantity_spec.character == quantity_character::vector) &&
+          (QS.character == quantity_character::real_scalar) &&
+          requires (const Q& q) { q.numerical_value_ref_in(q.unit)(0)(0); }
+[[nodiscard]] constexpr QuantityOf<QS> auto get_magnitude(const Q& q)
+{
+  const auto& m = q.numerical_value_ref_in(q.unit);
+  return magnitude(m) * QS[Q::unit];
+}
+
+template<QuantitySpec auto QS, QuantityOf<QS> T>
+  requires(T::quantity_spec.character == quantity_character::vector) &&
+          (QS.character == quantity_character::real_scalar)
+[[nodiscard]] constexpr QuantityOf<QS> auto get_magnitude(const matrix<T>& m)
+{
+  return QS(magnitude(m));
 }
 
 template<QuantitySpec auto QS, QuantityOf<QS> Q>
@@ -389,6 +451,64 @@ TEST_CASE("vector of quantities", "[la]")
     const vector<quantity<isq::velocity[km / h], int>> v = {2 * km / h, 3 * km / h, 6 * km / h};
     const auto speed = get_magnitude<isq::speed>(v);
     CHECK(speed.numerical_value_ref_in(km / h) == 7);
+  }
+
+  SECTION("element access")
+  {
+    SECTION("vector")
+    {
+      auto v = vector<int>{3, 1, 4} * isq::displacement[km];
+      CHECK(v.unit == km);
+      CHECK(v(0) == 3 * km);
+      CHECK(v(1) == 1 * km);
+      CHECK(v(2) == 4 * km);
+      v(1) = 2 * km;
+      CHECK(v(1) == 2 * km);
+    }
+
+    SECTION("3-port impedance matrix produces correct voltages")
+    {
+      // Make vectors from scalars
+
+      // Z-matrix in ohms
+      const auto raw_z = matrix<double>{ { 50.0,  2.0,  1.0 },
+                                         {  2.0, 55.0,  3.0 },
+                                         {  1.0,  3.0, 45.0 } };
+      CHECK(raw_z(0, 0) == 50.0);
+      CHECK(raw_z(1, 1) == 55.0);
+      CHECK(raw_z(2, 2) == 45.0);
+
+      auto z = quantity{raw_z, resistance_vec[ohm]};
+
+      CHECK(z.unit == ohm);
+      CHECK(z(0, 0) == 50.0 * ohm);
+      CHECK(z(ohm)(1, 1) == 55.0);
+
+      z(1, 1) = .045 * kohm;
+      CHECK(z(1, 1) == 45.0 * ohm);
+
+      CHECK(z(2, 2) == 45.0 * ohm);
+      z(ohm)(2, 2) = 55.0;
+      // z(kohm)(2, 2) == 55.0/1000 // won't compile
+      CHECK(z(2, 2) == 55 * ohm);
+
+      // Current vector in amperes
+      constexpr auto raw_i = vector<double>{ {  2.0 },
+                                             { -1.0 },
+                                             {  0.5 } };
+
+      constexpr auto i = quantity{raw_i, current_vec[si::ampere]};
+
+      auto v = z * i; // Compute voltage vector
+
+      constexpr auto expect = vector<double>{ {  98.5 },
+                                              { -39.5 },
+                                              {  26.5 } };
+      // Verify units and numerical results
+      CHECK(v(V) == expect);
+      CHECK(v(2)(mV) == expect(2) * 1000);
+      CHECK(v(1) == expect(1) * si::volt);
+    }
   }
 
   SECTION("multiply by scalar value")

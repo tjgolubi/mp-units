@@ -646,13 +646,19 @@ public:
   template<std::derived_from<quantity> Q, RepresentationOf<quantity_spec> Value>
     requires detail::DimensionlessOne<Q::reference> && std::three_way_comparable_with<rep, Value>
   [[nodiscard]] friend constexpr auto operator<=>(const Q& lhs, const Value& rhs)
-  {
-    return lhs.numerical_value_ref_in(unit) <=> rhs;
-  }
+    { return lhs.numerical_value_ref_in(unit) <=> rhs; }
 
   template<Unit U> requires(equivalent(U{}, unit))
   [[nodiscard]] constexpr rep& operator()(U) & noexcept
     { return numerical_value_is_an_implementation_detail_; }
+
+  template<Unit U> requires(equivalent(U{}, unit))
+  [[nodiscard]] constexpr const rep& operator()(U) const& noexcept
+    { return numerical_value_is_an_implementation_detail_; }
+
+  template<Unit U> requires(equivalent(U{}, unit))
+  [[nodiscard]] constexpr rep operator()(U) && noexcept
+    { return std::move(numerical_value_is_an_implementation_detail_); }
 
   template<MP_UNITS_WEAK_UNIT_OF(quantity_spec) U>
     requires detail::ValuePreservingScaling<unit, U{}, rep>
@@ -673,13 +679,50 @@ public:
     using QQ      = quantity<reference, ElemRep>;
 
     /// Read as a quantity value.
-    constexpr operator QQ() const {
+    constexpr operator QQ() const
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
       auto& nr = q->numerical_value_ref_in(unit);
       return nr[idx] * reference;
     }
 
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr ElemRep& operator()(U) &
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return nr[idx];
+    }
+
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr const ElemRep& operator()(U) const&
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return nr[idx];
+    }
+
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr ElemRep operator()(U) &&
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return std::move(nr[idx]);
+    }
+
+    template<MP_UNITS_WEAK_UNIT_OF(quantity_spec) U>
+      requires detail::ValuePreservingScaling<unit, U{}, ElemRep>
+    [[nodiscard]] constexpr ElemRep operator()(U) const
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return (nr[idx] * reference).numerical_value_in(U{});
+    }
+
     /// Plain assignment: only the exact element-quantity type.
-    constexpr Brack1ElemRef& operator=(const QQ& rhs) {
+    constexpr Brack1ElemRef& operator=(const QQ& rhs)
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
       auto& nr = q->numerical_value_ref_in(unit);
       nr[idx] = rhs.numerical_value_in(unit);
       return *this;
@@ -687,36 +730,54 @@ public:
 
     /// RMW ops: accept anything constructible as QQ; forward RHS.
     template<class X> requires std::constructible_from<QQ, X&&>
-    constexpr Brack1ElemRef& operator+=(X&& x) {
+    constexpr Brack1ElemRef& operator+=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
       auto cur = static_cast<QQ>(*this);
       cur += QQ(std::forward<X>(x));
       return (*this = cur);
     }
 
     template<class X> requires std::constructible_from<QQ, X&&>
-    constexpr Brack1ElemRef& operator-=(X&& x) {
+    constexpr Brack1ElemRef& operator-=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
       auto cur = static_cast<QQ>(*this);
       cur -= QQ(std::forward<X>(x));
       return (*this = cur);
     }
 
     template<class X> requires std::constructible_from<QQ, X&&>
-    constexpr Brack1ElemRef& operator*=(X&& x) {
+    constexpr Brack1ElemRef& operator*=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
       auto cur = static_cast<QQ>(*this);
       cur *= QQ(std::forward<X>(x));
       return (*this = cur);
     }
 
     template<class X> requires std::constructible_from<QQ, X&&>
-    constexpr Brack1ElemRef& operator/=(X&& x) {
+    constexpr Brack1ElemRef& operator/=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
       auto cur = static_cast<QQ>(*this);
       cur /= QQ(std::forward<X>(x));
       return (*this = cur);
     }
 
-    bool operator==(const QQ& rhs) const
-      { return (QQ{*this} == rhs); }
+    [[nodiscard]] constexpr bool operator==(const QQ& rhs) const
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
+      const auto& nr = q->numerical_value_ref_in(unit);
+      return (nr[idx] == rhs.numerical_value_ref_in(unit));
+    }
 
+    [[nodiscard]] constexpr auto operator<=>(const QQ& rhs) const
+      noexcept(noexcept(std::declval<rep&>()[0u]))
+    {
+      const auto& nr = q->numerical_value_ref_in(unit);
+      return (nr[idx] == rhs.numerical_value_ref_in(unit));
+    }
   }; // Brack1ElemRef
 
   // ---- operator[] overloads ----
@@ -735,10 +796,280 @@ public:
 
   // && → value quantity (read-only); move only the element
   constexpr auto operator[](std::integral auto idx) &&
-    noexcept(noexcept(numerical_value_is_an_implementation_detail_[0u]))
+    noexcept(noexcept(std::declval<const rep&>()[0u]))
     requires requires(rep& r) { r[0u]; }
   {
-    return std::move(numerical_value_is_an_implementation_detail_[std::size_t(idx)])
+    return std::move(numerical_value_is_an_implementation_detail_[static_cast<std::size_t>(idx)])
+           * reference;
+  }
+
+  // --- operator()(i) proxy -----------------------------------------------
+  struct Paren1ElemRef {
+    quantity* q;
+    std::size_t idx;
+
+    using ElemRef = decltype(std::declval<rep&>()(0));
+    using ElemRep = std::remove_reference_t<ElemRef>;
+    using QQ      = quantity<reference, ElemRep>;
+
+    /// Read as a quantity value.
+    constexpr operator QQ() const
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return nr(idx) * reference;
+    }
+
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr ElemRep& operator()(U) &
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return nr(idx);
+    }
+
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr const ElemRep& operator()(U) const&
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return nr(idx);
+    }
+
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr ElemRep operator()(U) &&
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return std::move(nr(idx));
+    }
+
+    template<MP_UNITS_WEAK_UNIT_OF(quantity_spec) U>
+      requires detail::ValuePreservingScaling<unit, U{}, ElemRep>
+    [[nodiscard]] constexpr ElemRep operator()(U) const
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return (nr(idx) * reference).numerical_value_in(U{});
+    }
+
+    /// Plain assignment: only the exact element-quantity type.
+    constexpr Paren1ElemRef& operator=(const QQ& rhs)
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      nr(idx) = rhs.numerical_value_in(unit);
+      return *this;
+    }
+
+    /// RMW ops: accept anything constructible as QQ; forward RHS.
+    template<class X> requires std::constructible_from<QQ, X&&>
+    constexpr Paren1ElemRef& operator+=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto cur = static_cast<QQ>(*this);
+      cur += QQ(std::forward<X>(x));
+      return (*this = cur);
+    }
+
+    template<class X> requires std::constructible_from<QQ, X&&>
+    constexpr Paren1ElemRef& operator-=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto cur = static_cast<QQ>(*this);
+      cur -= QQ(std::forward<X>(x));
+      return (*this = cur);
+    }
+
+    template<class X> requires std::constructible_from<QQ, X&&>
+    constexpr Paren1ElemRef& operator*=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto cur = static_cast<QQ>(*this);
+      cur *= QQ(std::forward<X>(x));
+      return (*this = cur);
+    }
+
+    template<class X> requires std::constructible_from<QQ, X&&>
+    constexpr Paren1ElemRef& operator/=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      auto cur = static_cast<QQ>(*this);
+      cur /= QQ(std::forward<X>(x));
+      return (*this = cur);
+    }
+
+    [[nodiscard]] constexpr bool operator==(const QQ& rhs) const
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      const auto& nr = q->numerical_value_ref_in(unit);
+      return (nr(idx) == rhs.numerical_value_ref_in(unit));
+    }
+
+    [[nodiscard]] constexpr auto operator<=>(const QQ& rhs) const
+      noexcept(noexcept(std::declval<rep&>()(0u)))
+    {
+      const auto& nr = q->numerical_value_ref_in(unit);
+      return (nr(idx) == rhs.numerical_value_ref_in(unit));
+    }
+
+  }; // Paren1ElemRef
+
+  // ---- operator() overloads ----
+
+  // & → proxy (read/write)
+  constexpr auto operator()(std::integral auto idx) &
+    noexcept(noexcept(std::declval<rep&>()(0u)))
+    requires requires(rep& r) { r(0u); }
+    { return Paren1ElemRef{this, static_cast<std::size_t>(idx)}; }
+
+  // const& → value quantity (read-only)
+  constexpr auto operator()(std::integral auto idx) const&
+    noexcept(noexcept(std::declval<const rep&>()(0u)))
+    requires requires(const rep& r) { r(0u); }
+    { return numerical_value_is_an_implementation_detail_(static_cast<std::size_t>(idx)) * reference; }
+
+  // && → value quantity (read-only); move only the element
+  constexpr auto operator()(std::integral auto idx) &&
+    noexcept(noexcept(std::declval<const rep&>()(0u)))
+    requires requires(rep& r) { r(0u); }
+  {
+    return std::move(numerical_value_is_an_implementation_detail_(static_cast<std::size_t>(idx)))
+           * reference;
+  }
+
+  // --- operator()(i, j) proxy --------------------------------------------
+  struct Paren2ElemRef {
+    quantity* q;
+    std::size_t i, j;
+
+    using ElemRef = decltype(std::declval<rep&>()(0, 0));
+    using ElemRep = std::remove_reference_t<ElemRef>;
+    using QQ      = quantity<reference, ElemRep>;
+
+    /// Read as a quantity value.
+    constexpr operator QQ() const
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return nr(i, j) * reference;
+    }
+
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr ElemRep& operator()(U) &
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return nr(i, j);
+    }
+
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr const ElemRep& operator()(U) const&
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return nr(i, j);
+    }
+
+    template<Unit U> requires(equivalent(U{}, unit))
+    [[nodiscard]] constexpr ElemRep operator()(U) &&
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return std::move(nr(i, j));
+    }
+
+    template<MP_UNITS_WEAK_UNIT_OF(quantity_spec) U>
+      requires detail::ValuePreservingScaling<unit, U{}, ElemRep>
+    [[nodiscard]] constexpr ElemRep operator()(U) const
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      return (nr(i, j) * reference).numerical_value_in(U{});
+    }
+
+    /// Plain assignment: only the exact element-quantity type.
+    constexpr Paren2ElemRef& operator=(const QQ& rhs)
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto& nr = q->numerical_value_ref_in(unit);
+      nr(i, j) = rhs.numerical_value_in(unit);
+      return *this;
+    }
+
+    /// RMW ops: accept anything constructible as QQ; forward RHS.
+    template<class X> requires std::constructible_from<QQ, X&&>
+    constexpr Paren2ElemRef& operator+=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto cur = static_cast<QQ>(*this);
+      cur += QQ(std::forward<X>(x));
+      return (*this = cur);
+    }
+
+    template<class X> requires std::constructible_from<QQ, X&&>
+    constexpr Paren2ElemRef& operator-=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto cur = static_cast<QQ>(*this);
+      cur -= QQ(std::forward<X>(x));
+      return (*this = cur);
+    }
+
+    template<class X> requires std::constructible_from<QQ, X&&>
+    constexpr Paren2ElemRef& operator*=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto cur = static_cast<QQ>(*this);
+      cur *= QQ(std::forward<X>(x));
+      return (*this = cur);
+    }
+
+    template<class X> requires std::constructible_from<QQ, X&&>
+    constexpr Paren2ElemRef& operator/=(X&& x)
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      auto cur = static_cast<QQ>(*this);
+      cur /= QQ(std::forward<X>(x));
+      return (*this = cur);
+    }
+
+    [[nodiscard]] constexpr bool operator==(const QQ& rhs) const
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      const auto& nr = q->numerical_value_ref_in(unit);
+      return (nr(i, j) == rhs.numerical_value_ref_in(unit));
+    }
+
+    [[nodiscard]] constexpr auto operator<=>(const QQ& rhs) const
+      noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    {
+      const auto& nr = q->numerical_value_ref_in(unit);
+      return (nr(i, j) == rhs.numerical_value_ref_in(unit));
+    }
+
+  }; // Paren2ElemRef
+
+  // ---- operator(i, j) overloads ----
+
+  // & → proxy (read/write)
+  constexpr auto operator()(std::integral auto i, std::integral auto j) &
+    noexcept(noexcept(std::declval<rep&>()(0u, 0u)))
+    requires requires(rep& r) { r(0u, 0u); }
+    { return Paren2ElemRef{this, static_cast<std::size_t>(i), static_cast<std::size_t>(j)}; }
+
+  // const& → value quantity (read-only)
+  constexpr auto operator()(std::integral auto i, std::integral auto j) const&
+    noexcept(noexcept(std::declval<const rep&>()(0u, 0u)))
+    requires requires(const rep& r) { r(0u, 0u); }
+    { return numerical_value_is_an_implementation_detail_(static_cast<std::size_t>(i), static_cast<std::size_t>(j)) * reference; }
+
+  // && → value quantity (read-only); move only the element
+  constexpr auto operator()(std::integral auto i, std::integral auto j) &&
+    noexcept(noexcept(std::declval<const rep&>()(0u, 0u)))
+    requires requires(rep& r) { r(0u, 0u); }
+  {
+    return std::move(numerical_value_is_an_implementation_detail_(static_cast<std::size_t>(i), static_cast<std::size_t>(j)))
            * reference;
   }
 
