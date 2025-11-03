@@ -451,8 +451,14 @@ TEST_CASE("vector of quantities", "[la]")
   {
     SECTION("vector")
     {
-      auto v = vector<int>{3, 1, 4} * isq::displacement[km];
+      auto v = quantity{vector<int>{3, 1, 4}, isq::displacement[km]};
       CHECK(v.unit == km);
+
+      auto y = 5 * isq::displacement[km];
+
+      auto u = v(1) + y;
+      CHECK(u == 6 * km);
+
       CHECK(v(0) == 3 * km);
       CHECK(v(1) == 1 * km);
       CHECK(v(2) == 4 * km);
@@ -462,6 +468,17 @@ TEST_CASE("vector of quantities", "[la]")
 
     SECTION("3-port impedance matrix produces correct voltages")
     {
+
+#if 0 // Defined elsewhere
+constexpr struct resistance_vec final
+  : quantity_spec<isq::resistance, quantity_character::vector>
+  { } resistance_vec;
+
+constexpr struct current_vec final
+  : quantity_spec<isq::electric_current, quantity_character::vector>
+  { } current_vec;
+#endif
+
       // Make vectors from scalars
 
       // Z-matrix in ohms
@@ -475,8 +492,12 @@ TEST_CASE("vector of quantities", "[la]")
       auto z = quantity{raw_z, resistance_vec[ohm]};
 
       CHECK(z.unit == ohm);
-      CHECK(z(0, 0) == 50.0 * ohm);
+      CHECK(z(0, 0)      == 50.0 * ohm);
       CHECK(z(ohm)(1, 1) == 55.0);
+
+      CHECK(50.0 * ohm == z(0, 0));
+      CHECK(55.0       == z(ohm)(1, 1));
+      CHECK(55.0       == z(1, 1)(ohm));
 
       z(1, 1) = .045 * kohm;
       CHECK(z(1, 1) == 45.0 * ohm);
@@ -499,9 +520,15 @@ TEST_CASE("vector of quantities", "[la]")
                                               { -39.5 },
                                               {  26.5 } };
       // Verify units and numerical results
-      CHECK(v(V) == expect);
+      CHECK(v(V)     == expect);
       CHECK(v(2)(mV) == expect(2) * 1000);
-      CHECK(v(1) == expect(1) * si::volt);
+      CHECK(v(mV)(2) == expect(2) * 1000);
+      CHECK(v(1)     == expect(1) * si::volt);
+
+      CHECK(expect               == v(V));
+      CHECK(expect(2) * 1000     == v(2)(mV));
+      CHECK(expect(2) * 1000     == v(mV)(2));
+      CHECK(expect(1) * si::volt == v(1));
     }
   }
 
