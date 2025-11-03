@@ -1079,13 +1079,13 @@ public:
       { l.q } -> std::same_as<quantity&>;
     };
 
-  template<class P>
+  template<class P> requires IsProxy<P>
   static constexpr auto AsQQ(const P& l) -> typename std::remove_cvref_t<P>::QQ
     { return static_cast<typename std::remove_cvref_t<P>::QQ>(l); }
 
   // Binary ops with Proxy on LHS
   template<class Lhs, Quantity Rhs> requires IsProxy<Lhs>
-  friend constexpr auto operator==(const Lhs& lhs, const Rhs& rhs)
+  friend constexpr bool operator==(const Lhs& lhs, const Rhs& rhs)
       noexcept(noexcept(AsQQ(lhs) == rhs))
     { return AsQQ(lhs) == rhs; }
 
@@ -1096,29 +1096,44 @@ public:
 
   // Arithmetic
   template<class Lhs, Quantity Rhs> requires IsProxy<Lhs>
-  friend constexpr auto operator+(const Lhs& lhs, const Rhs& rhs)
+  friend constexpr Quantity auto operator+(const Lhs& lhs, const Rhs& rhs)
       noexcept(noexcept(AsQQ(lhs) + rhs))
     { return AsQQ(lhs) + rhs; }
 
   template<class Lhs, Quantity Rhs> requires IsProxy<Lhs>
-  friend constexpr auto operator-(const Lhs& lhs, const Rhs& rhs)
+  friend constexpr Quantity auto operator-(const Lhs& lhs, const Rhs& rhs)
       noexcept(noexcept(AsQQ(lhs) - rhs))
     { return AsQQ(lhs) - rhs; }
 
-  template<class Lhs, Quantity Rhs> requires IsProxy<Lhs>
-  friend constexpr auto operator*(const Lhs& lhs, const Rhs& rhs)
+  template<class Lhs, typename Rhs> requires IsProxy<Lhs>
+  [[nodiscard]] friend constexpr Quantity auto operator%(const Lhs& lhs, const Rhs& rhs)
+      noexcept(noexcept(AsQQ(lhs) % rhs))
+    { return AsQQ(lhs) % rhs; }
+
+  template<typename Lhs, class Rhs> requires IsProxy<Rhs>
+  [[nodiscard]] friend constexpr Quantity auto operator%(const Lhs& lhs, const Rhs& rhs)
+      noexcept(noexcept(rhs % AsQQ(lhs)))
+    { return lhs % AsQQ(rhs); }
+
+  template<class Lhs, typename Rhs> requires IsProxy<Lhs>
+  [[nodiscard]] friend constexpr Quantity auto operator*(const Lhs& lhs, const Rhs& rhs)
       noexcept(noexcept(AsQQ(lhs) * rhs))
     { return AsQQ(lhs) * rhs; }
 
-  template<class Lhs, Quantity Rhs> requires IsProxy<Lhs>
-  friend constexpr auto operator/(const Lhs& lhs, const Rhs& rhs)
+  template<typename Lhs, class Rhs> requires IsProxy<Rhs>
+  [[nodiscard]] friend constexpr QuantityOf<quantity_spec> auto operator*(const Lhs& lhs, const Rhs& rhs)
+      noexcept(noexcept(lhs * AsQQ(rhs)))
+    { return lhs * AsQQ(rhs); }
+
+  template<class Lhs, typename Rhs> requires IsProxy<Lhs>
+  [[nodiscard]] friend constexpr Quantity auto operator/(const Lhs& lhs, const Rhs& rhs)
       noexcept(noexcept(AsQQ(lhs) / rhs))
     { return AsQQ(lhs) / rhs; }
 
-  template<class Lhs, Quantity Rhs> requires IsProxy<Lhs>
-  friend constexpr auto operator%(const Lhs& lhs, const Rhs& rhs)
-      noexcept(noexcept(AsQQ(lhs) % rhs))
-    { return AsQQ(lhs) % rhs; }
+  template<typename Lhs, class Rhs> requires IsProxy<Rhs>
+  [[nodiscard]] friend constexpr Quantity auto operator/(const Lhs& lhs, const Rhs& rhs)
+      noexcept(noexcept(lhs / AsQQ(rhs)))
+    { return lhs / AsQQ(rhs); }
 
 }; // quantity
 
@@ -1485,3 +1500,4 @@ public:
 };
 
 #endif  // MP_UNITS_HOSTED
+

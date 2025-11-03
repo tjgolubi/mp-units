@@ -468,17 +468,6 @@ TEST_CASE("vector of quantities", "[la]")
 
     SECTION("3-port impedance matrix produces correct voltages")
     {
-
-#if 0 // Defined elsewhere
-constexpr struct resistance_vec final
-  : quantity_spec<isq::resistance, quantity_character::vector>
-  { } resistance_vec;
-
-constexpr struct current_vec final
-  : quantity_spec<isq::electric_current, quantity_character::vector>
-  { } current_vec;
-#endif
-
       // Make vectors from scalars
 
       // Z-matrix in ohms
@@ -529,6 +518,11 @@ constexpr struct current_vec final
       CHECK(expect(2) * 1000     == v(2)(mV));
       CHECK(expect(2) * 1000     == v(mV)(2));
       CHECK(expect(1) * si::volt == v(1));
+
+      auto v2 = 2.0 * expect(2) * si::volt;
+
+      CHECK(2.0 * v(2) == v2);
+      CHECK(v(2) * 2.0 == v2);
     }
   }
 
